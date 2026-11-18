@@ -92,7 +92,6 @@ prereq | zip (Windows only) | * | Info-ZIP | https://infozip.sourceforge.net | -
 npmglobal | typescript | latest | Apache-2.0 | https://github.com/microsoft/TypeScript | npm:typescript
 npmglobal | typescript-language-server | latest | Apache-2.0 | https://github.com/typescript-language-server/typescript-language-server | npm:typescript-language-server
 npmglobal | tsx | latest | MIT | https://github.com/privatenumber/tsx | npm:tsx
-npmglobal | mongodb-mcp-server | 1.9.0 | Apache-2.0 | https://github.com/mongodb-js/mongodb-mcp-server | npm:mongodb-mcp-server@1.9.0
 
 # pi.version packages whose npm tarball has no LICENSE file: the version comes
 # from pi.version (`*`), these lines only say where the license lives.
@@ -132,7 +131,6 @@ python | click | * | BSD-3-Clause | https://pypi.org/project/click | pypi
 python | cloudpickle | * | BSD-3-Clause | https://pypi.org/project/cloudpickle | pypi
 python | defusedxml | * | PSF-2.0 | https://pypi.org/project/defusedxml | pypi
 python | distro | * | Apache-2.0 | https://pypi.org/project/distro | pypi
-python | dnspython | * | ISC | https://pypi.org/project/dnspython | pypi
 python | feedparser | * | BSD-2-Clause | https://pypi.org/project/feedparser | pypi
 python | feedparser-sgmllib | * | PSF-2.0 | https://pypi.org/project/feedparser-sgmllib | pypi
 python | grpcio | * | Apache-2.0 | https://pypi.org/project/grpcio | pypi
@@ -178,7 +176,6 @@ python | pycryptodome | * | BSD-2-Clause AND LicenseRef-Public-Domain | https://
 python | pydantic | * | MIT | https://pypi.org/project/pydantic | pypi
 python | pydantic-core | * | MIT | https://pypi.org/project/pydantic-core | pypi
 python | pymilvus | * | Apache-2.0 | https://pypi.org/project/pymilvus | pypi
-python | pymongo | * | Apache-2.0 | https://pypi.org/project/pymongo | pypi
 python | pyparsing | * | MIT | https://pypi.org/project/pyparsing | pypi
 python | python-dateutil | * | Apache-2.0 AND BSD-3-Clause | https://pypi.org/project/python-dateutil | pypi
 python | python-dotenv | * | BSD-3-Clause | https://pypi.org/project/python-dotenv | pypi

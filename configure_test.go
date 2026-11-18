@@ -455,7 +455,6 @@ func TestBuildLaunchMCPFromOpsConfig(t *testing.T) {
 	cfg.Milvus.Port = 19530
 	cfg.Milvus.Token = "app:tok"
 	cfg.Milvus.DB.Name = "appdb"
-	cfg.MongoDB.URI = "mongodb://app:pw@mongodb:27017/appdb"
 
 	mcp := buildMCPFromOpsConfig(&cfg)
 
@@ -508,16 +507,11 @@ func TestBuildLaunchMCPFromOpsConfig(t *testing.T) {
 		t.Fatalf("unexpected redis environment: %#v", redisEnv)
 	}
 
-	mongodb := mcp["mongodb"].(map[string]interface{})
-	if cmd := mongodb["command"].([]string); len(cmd) != 1 || cmd[0] != "mongodb-mcp-server" {
-		t.Fatalf("unexpected mongodb command: %#v", mongodb["command"])
-	}
-	mongodbEnv := mongodb["environment"].(map[string]string)
-	if mongodbEnv["MDB_MCP_CONNECTION_STRING"] != "mongodb://app:pw@mongodb:27017/appdb" {
-		t.Fatalf("unexpected mongodb connection string: %#v", mongodbEnv)
+	if _, ok := mcp["mongodb"]; ok {
+		t.Fatalf("MongoDB MCP must never be generated (issue #230): %#v", mcp["mongodb"])
 	}
 
-	for _, name := range []string{"redis", "milvus", "mongodb"} {
+	for _, name := range []string{"redis", "milvus"} {
 		server := mcp[name].(map[string]interface{})
 		if server["enabled"] != true {
 			t.Fatalf("%s MCP should be enabled: %#v", name, server)
@@ -530,26 +524,16 @@ func TestBuildLaunchMCPFromOpsConfig(t *testing.T) {
 	}
 }
 
-func TestBuildLaunchMCPMongoDBFromOfficialConfigOnly(t *testing.T) {
+// Issue #230: Trustant never uses MongoDB, even when ~/.ops/config.json
+// carries a MongoDB block from the platform.
+func TestBuildLaunchMCPNeverGeneratesMongoDB(t *testing.T) {
 	var cfg opsConfig
-	cfg.MongoDB.Host = "mongodb"
-	cfg.MongoDB.Port = 27017
-	cfg.MongoDB.Database = "appdb"
-	cfg.MongoDB.Username = "app"
-	cfg.MongoDB.Password = "pw"
-	cfg.MongoDB.AuthSource = "admin"
-
-	mcp := buildMCPFromOpsConfig(&cfg)
-	mongodb := mcp["mongodb"].(map[string]interface{})
-	env := mongodb["environment"].(map[string]string)
-	if got := env["MDB_MCP_CONNECTION_STRING"]; got != "mongodb://app:pw@mongodb:27017/appdb?authSource=admin" {
-		t.Fatalf("unexpected derived mongodb connection string: %s", got)
+	raw := `{"mongodb":{"uri":"mongodb://app:pw@mongodb:27017/appdb","host":"mongodb","port":27017,"database":"appdb"},"MONGODB_URI":"mongodb://x/y"}`
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		t.Fatalf("unmarshal ops config: %s", err)
 	}
-
-	var noOfficialCapability opsConfig
-	noOfficialCapability.MongoDB.Host = "mongodb"
-	if got := buildMCPFromOpsConfig(&noOfficialCapability); got != nil {
-		t.Fatalf("incomplete mongodb block should not enable MCP, got %#v", got)
+	if got := buildMCPFromOpsConfig(&cfg); got != nil {
+		t.Fatalf("a MongoDB-only ops config must not yield any MCP server, got %#v", got)
 	}
 }
 
@@ -629,16 +613,6 @@ func TestGeneratedAppEnvUsesOnlyTrustantConfiguration(t *testing.T) {
 		t.Fatalf("expected Trustant-managed OPS_PASSWORD, got %q", got)
 	}
 
-	runtimeEnv := appServiceRuntimeEnv([]string{"BASE=1"})
-	hasMongoRuntime := false
-	for _, item := range runtimeEnv {
-		if item == "MONGODB_URI=mongodb://app:pw@mongodb:27017/appdb" {
-			hasMongoRuntime = true
-		}
-	}
-	if !hasMongoRuntime {
-		t.Fatalf("MongoDB runtime env should be available to launch processes, got %#v", runtimeEnv)
-	}
 }
 
 // Project generation follows the Pi/ACP contract even when the workbench path
@@ -988,142 +962,53 @@ func TestOpenServerlessCheckerIgnoresVendoredPythonDependencies(t *testing.T) {
 	}
 }
 
-func TestOpenServerlessCheckerRejectsMongoMilvusSubstitution(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".openserverless-contract.md"), []byte("contract\n"), 0644); err != nil {
-		t.Fatalf("write contract: %s", err)
+// Issue #230: any MongoDB client, binding or connection variable in an action
+// module or wrapper is rejected; PostgreSQL/Redis are the supported stores.
+func TestOpenServerlessCheckerRejectsMongoDB(t *testing.T) {
+	cases := map[string]struct{ wrapper, module string }{
+		"pymongo module": {
+			wrapper: "from stack import main\n",
+			module:  "from pymongo import MongoClient\n\ndef main(args, ctx=None):\n    return {\"client\": MongoClient}\n",
+		},
+		"guessed env": {
+			wrapper: "from stack import main\n",
+			module:  "import os\n\ndef main(args, ctx=None):\n    return {\"uri\": os.getenv(\"MONGODB_URI\")}\n",
+		},
+		"mcp private env": {
+			wrapper: "from stack import main\n",
+			module:  "import os\n\ndef main(args, ctx=None):\n    return {\"uri\": os.getenv(\"MDB_MCP_CONNECTION_STRING\")}\n",
+		},
+		"generated wrapper binding": {
+			wrapper: "from stack import main\n\ndef init_mongodb(args, ctx):\n    ctx.MONGODB_CLIENT = object()\n",
+			module:  "def main(args, ctx=None):\n    return {\"ok\": ctx.MONGODB_CLIENT is not None}\n",
+		},
 	}
-	actionDir := filepath.Join(dir, "packages", "v1", "stack")
-	if err := os.MkdirAll(actionDir, 0755); err != nil {
-		t.Fatalf("mkdir action: %s", err)
-	}
-	if err := os.WriteFile(filepath.Join(actionDir, "__main__.py"), []byte("from stack import main\n"), 0644); err != nil {
-		t.Fatalf("write wrapper: %s", err)
-	}
-	module := `from pymilvus import MilvusClient
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, ".openserverless-contract.md"), []byte("contract\n"), 0644); err != nil {
+				t.Fatalf("write contract: %s", err)
+			}
+			actionDir := filepath.Join(dir, "packages", "v1", "stack")
+			if err := os.MkdirAll(actionDir, 0755); err != nil {
+				t.Fatalf("mkdir action: %s", err)
+			}
+			if err := os.WriteFile(filepath.Join(actionDir, "__main__.py"), []byte(tc.wrapper), 0644); err != nil {
+				t.Fatalf("write wrapper: %s", err)
+			}
+			if err := os.WriteFile(filepath.Join(actionDir, "stack.py"), []byte(tc.module), 0644); err != nil {
+				t.Fatalf("write module: %s", err)
+			}
+			writeActionDeployArtifact(t, actionDir)
 
-def main(args, ctx=None):
-    return {"component": "MongoDB", "client": MilvusClient}
-`
-	if err := os.WriteFile(filepath.Join(actionDir, "stack.py"), []byte(module), 0644); err != nil {
-		t.Fatalf("write module: %s", err)
-	}
-
-	cmd := exec.Command("bash", "check_openserverless_actions.sh", dir)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("checker should reject MongoDB implemented with Milvus, output=%s", strings.TrimSpace(string(out)))
-	}
-	if !strings.Contains(string(out), "Do not use Milvus/vector tooling as a MongoDB substitute") {
-		t.Fatalf("unexpected checker output: %s", strings.TrimSpace(string(out)))
-	}
-}
-
-func TestOpenServerlessCheckerAllowsIndependentMongoDBAndMilvusChecks(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".openserverless-contract.md"), []byte("contract\n"), 0644); err != nil {
-		t.Fatalf("write contract: %s", err)
-	}
-	actionDir := filepath.Join(dir, "packages", "v1", "monitor")
-	if err := os.MkdirAll(actionDir, 0755); err != nil {
-		t.Fatalf("mkdir action: %s", err)
-	}
-	wrapper := `from monitor import main
-
-def init_mongodb(args, ctx):
-    ctx.MONGODB_CLIENT = object()
-
-def init_milvus(args, ctx):
-    ctx.MILVUS = object()
-`
-	if err := os.WriteFile(filepath.Join(actionDir, "__main__.py"), []byte(wrapper), 0644); err != nil {
-		t.Fatalf("write wrapper: %s", err)
-	}
-	module := `def check_mongodb(ctx):
-    return ctx.MONGODB_CLIENT.admin.command("ping")
-
-def check_milvus(ctx):
-    return ctx.MILVUS.list_collections()
-
-def main(args, ctx=None):
-    return {"mongodb": check_mongodb(ctx), "milvus": check_milvus(ctx)}
-`
-	if err := os.WriteFile(filepath.Join(actionDir, "monitor.py"), []byte(module), 0644); err != nil {
-		t.Fatalf("write module: %s", err)
-	}
-	writeActionDeployArtifact(t, actionDir)
-
-	cmd := exec.Command("bash", "check_openserverless_actions.sh", dir)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("checker should allow independent MongoDB and Milvus checks, err=%s output=%s", err, strings.TrimSpace(string(out)))
-	}
-	if !strings.Contains(string(out), "OpenServerless action contract check passed") {
-		t.Fatalf("unexpected checker output: %s", strings.TrimSpace(string(out)))
-	}
-}
-
-func TestOpenServerlessCheckerRejectsMongoMCPRuntimeEnv(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".openserverless-contract.md"), []byte("contract\n"), 0644); err != nil {
-		t.Fatalf("write contract: %s", err)
-	}
-	actionDir := filepath.Join(dir, "packages", "v1", "stack")
-	if err := os.MkdirAll(actionDir, 0755); err != nil {
-		t.Fatalf("mkdir action: %s", err)
-	}
-	if err := os.WriteFile(filepath.Join(actionDir, "__main__.py"), []byte("from stack import main\n"), 0644); err != nil {
-		t.Fatalf("write wrapper: %s", err)
-	}
-	module := `import os
-
-def main(args, ctx=None):
-    uri = os.getenv("MDB_MCP_CONNECTION_STRING")
-    return {"component": "MongoDB", "uri": uri}
-`
-	if err := os.WriteFile(filepath.Join(actionDir, "stack.py"), []byte(module), 0644); err != nil {
-		t.Fatalf("write module: %s", err)
-	}
-
-	cmd := exec.Command("bash", "check_openserverless_actions.sh", dir)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("checker should reject MongoDB MCP runtime env usage, output=%s", strings.TrimSpace(string(out)))
-	}
-	if !strings.Contains(string(out), "MDB_MCP_CONNECTION_STRING is private to the MongoDB MCP server") {
-		t.Fatalf("unexpected checker output: %s", strings.TrimSpace(string(out)))
-	}
-}
-
-func TestOpenServerlessCheckerRejectsGuessedMongoRuntimeEnvWithoutBinding(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".openserverless-contract.md"), []byte("contract\n"), 0644); err != nil {
-		t.Fatalf("write contract: %s", err)
-	}
-	actionDir := filepath.Join(dir, "packages", "v1", "stack")
-	if err := os.MkdirAll(actionDir, 0755); err != nil {
-		t.Fatalf("mkdir action: %s", err)
-	}
-	if err := os.WriteFile(filepath.Join(actionDir, "__main__.py"), []byte("from stack import main\n"), 0644); err != nil {
-		t.Fatalf("write wrapper: %s", err)
-	}
-	module := `import os
-
-def main(args, ctx=None):
-    uri = os.getenv("MONGODB_URI") or os.getenv("MDB_CONNECTION_STRING")
-    return {"component": "MongoDB", "uri": uri}
-`
-	if err := os.WriteFile(filepath.Join(actionDir, "stack.py"), []byte(module), 0644); err != nil {
-		t.Fatalf("write module: %s", err)
-	}
-
-	cmd := exec.Command("bash", "check_openserverless_actions.sh", dir)
-	out, err := cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("checker should reject guessed MongoDB runtime env usage, output=%s", strings.TrimSpace(string(out)))
-	}
-	if !strings.Contains(string(out), "MongoDB runtime environment was guessed in action code") {
-		t.Fatalf("unexpected checker output: %s", strings.TrimSpace(string(out)))
+			out, err := exec.Command("bash", "check_openserverless_actions.sh", dir).CombinedOutput()
+			if err == nil {
+				t.Fatalf("checker should reject MongoDB usage, output=%s", strings.TrimSpace(string(out)))
+			}
+			if !strings.Contains(string(out), "MongoDB is not supported by Trustant") {
+				t.Fatalf("unexpected checker output: %s", strings.TrimSpace(string(out)))
+			}
+		})
 	}
 }
 

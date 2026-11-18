@@ -115,17 +115,17 @@ if [ -d packages ]; then
     fi
   done < <(find packages -mindepth 3 -maxdepth 3 -type f -name __main__.py 2>/dev/null | sort)
 
+  # Issue #230: Trustant never uses MongoDB. Any MongoDB client, binding or
+  # connection variable in an action (module or wrapper) is an error.
+  for source in "${package_python_sources[@]}"; do
+    if grep -Eq 'pymongo|MongoClient|motor\.motor_asyncio|ctx\.MONGODB|init_mongo|MONGODB_URI|MONGO_URL|MONGO_CONNECTION_STRING|MDB_[A-Z_]*CONNECTION_STRING' "$source"; then
+      error "$source" "MongoDB is not supported by Trustant. Store documents in PostgreSQL (JSONB columns) via ctx.POSTGRESQL, or use Redis (ctx.REDIS) for cache, session, queue or simple key-value data."
+    fi
+  done
+
   for module in "${package_action_modules[@]}"; do
     if grep -Eq 'os\.getenv\(["'\'']POSTGRES_URL["'\'']\)|args\.get\(["'\'']POSTGRES_URL["'\'']\)|psycopg2?\.connect\(.*POSTGRES_URL|psycopg2?\.connect\(.*getenv' "$module"; then
       warn "$module" "Business module reads POSTGRES_URL. Prefer ctx.POSTGRESQL when wrapper wiring provides it."
-    fi
-    if grep -Eiq 'mongo(db)?|MONGODB|MONGO_' "$module" &&
-      grep -Eq 'MILVUS|pymilvus|milvus_cli|MilvusClient' "$module" &&
-      ! grep -Eq 'ctx\.MONGODB(_CLIENT)?([^A-Za-z0-9_]|$)' "$module"; then
-      error "$module" "MongoDB is a separate document database capability. Do not use Milvus/vector tooling as a MongoDB substitute; report MongoDB as non configurato when the official capability is absent."
-    fi
-    if grep -Eq 'MDB_MCP_CONNECTION_STRING' "$module"; then
-      error "$module" "MDB_MCP_CONNECTION_STRING is private to the MongoDB MCP server and is not an app action runtime binding. Use an official action/runtime MongoDB binding when available, otherwise report MongoDB as non configurato."
     fi
     action_dir="$(dirname "$module")"
     wrapper="$action_dir/__main__.py"
@@ -135,10 +135,6 @@ if [ -d packages ]; then
     if grep -Eq 'ctx\.REDIS(_PREFIX)?([^A-Za-z0-9_]|$)' "$module" &&
       { [ ! -f "$wrapper" ] || ! grep -Eq 'init_redis|ctx\.REDIS(_PREFIX)?([^A-Za-z0-9_]|$)' "$wrapper"; }; then
       error "$module" "Action module uses ctx.REDIS but its generated wrapper has no Redis connector. Call auth_setup with the complete authentication endpoint set, or action_add_redis for one non-authentication endpoint; never edit __main__.py manually."
-    fi
-    if grep -Eq 'MONGODB_URI|MONGO_URL|MONGO_CONNECTION_STRING|MDB_CONNECTION_STRING' "$module" &&
-      { [ ! -f "$wrapper" ] || ! grep -Eq 'init_mongo|init_mongodb|MONGODB|MONGO_|MDB_' "$wrapper"; }; then
-      error "$module" "MongoDB runtime environment was guessed in action code, but no generated MongoDB action binding was detected. MCP MongoDB visibility is diagnostic only; report MongoDB as non configurato unless an official runtime binding exists."
     fi
     if grep -Eq 'ctx\.REDIS|REDIS' "$module" &&
       grep -Eq '\.(get|set|delete|exists|expire|hset|hget|hmset|hmget|lpush|rpush|sadd|zadd|incr|decr|scan|keys)[[:space:]]*\(' "$module" &&

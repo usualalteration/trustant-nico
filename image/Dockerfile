@@ -81,7 +81,7 @@ RUN \
 # Keep the upstream Milvus CLI pinned in /usr/local/bin. WHY: app launch replaces
 # ~/.local/bin/milvus_cli with a configured wrapper and must not follow a
 # floating package or overwrite the package-managed implementation.
-# installing lsp: ts py, mcp: postgres, redis, milvus, mongodb, cli: milvus
+# installing lsp: ts py, mcp: postgres, redis, milvus, cli: milvus
 # WHY the `mcp<2` constraint: postgres-mcp, redis-mcp-server, and mcp-server-milvus
 # declare an open (or absent) upper bound on the MCP SDK (`mcp[cli]>=1.5.0` /
 # `>=1.9.4`), but all three still import `mcp.server.fastmcp`, which mcp 2.x
@@ -128,7 +128,7 @@ RUN set -eu ;\
 COPY openserverless-mcp /tmp/openserverless-mcp
 COPY trustant-react-mcp /tmp/trustant-react-mcp
 RUN \
-    npm install -g typescript-language-server typescript tsx mongodb-mcp-server@1.9.0 ;\
+    npm install -g typescript-language-server typescript tsx ;\
     cd /tmp/openserverless-mcp && npm pack --pack-destination /tmp ;\
     npm install -g tsx /tmp/openserverless-mcp-*.tgz ;\
     cd /tmp/trustant-react-mcp && npm pack --pack-destination /tmp ;\

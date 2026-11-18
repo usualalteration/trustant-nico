@@ -162,7 +162,8 @@ The managed extension also enforces reproducible OpenServerless ownership. It
 allows the corrected Redis-only `auth_setup` tool, blocks the obsolete
 environment-mutating `secret_ensure`, rejects writes to generated
 `packages/**/__main__.py` wrappers and `packages/**/*.zip` artifacts, and
-rejects mutating PostgreSQL/Redis/MongoDB/S3/Milvus MCP calls. Service MCP
+rejects mutating PostgreSQL/Redis/S3/Milvus MCP calls (there is no MongoDB
+MCP server: Trustant never uses MongoDB, issue #230). Service MCP
 reads remain available for discovery and verification; schema, seed, and
 application writes belong in setup or public OpenServerless actions.
 

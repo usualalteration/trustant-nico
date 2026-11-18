@@ -130,24 +130,12 @@ Invalid examples:
 - Service MCP servers are assistant-side diagnostics. They do not automatically
   create runtime env vars, action params, or `ctx` bindings inside Python
   actions.
-- MongoDB is a separate document database capability. Use it only when the
-  official MongoDB capability is present in generated config/environment.
-- If `action-add-mongodb` / `action_add_mongodb` is exposed, use it to generate
-  the MongoDB wrapper and use `ctx.MONGODB_CLIENT` or `ctx.MONGODB` in business
-  modules.
-- One action may legitimately use MongoDB and Milvus as separate capabilities.
-  In that case use the official `ctx.MONGODB_CLIENT` / `ctx.MONGODB` binding for
-  MongoDB and `ctx.MILVUS` for vector operations; the presence of both services
-  is not, by itself, a MongoDB substitution error.
-- If MongoDB is absent, show `non configurato` or an error state and document
-  that state. Do not ask the user for infrastructure details and do not use
-  Milvus/vector search as a substitute for MongoDB.
-- Do not use `MDB_MCP_CONNECTION_STRING` in app source or action code. It is
-  only the MongoDB MCP server's private environment variable, not an app runtime
-  binding.
-- Do not invent MongoDB runtime env vars such as `MONGODB_URI`, `MONGO_URL`, or
-  `MDB_CONNECTION_STRING` unless a generated action wrapper already exposes an
-  official MongoDB binding.
+- Never use MongoDB (issue #230): no `pymongo`, `MongoClient`, `ctx.MONGODB*`,
+  `MONGODB_URI`, `MONGO_*` or `MDB_*` in app source or actions; the checker
+  rejects them. Store document/JSON data in PostgreSQL `JSONB` columns via
+  `ctx.POSTGRESQL`; use Redis only for cache, sessions, queues and simple
+  key-value data. If the user asks for MongoDB, build on PostgreSQL `JSONB` and
+  say so in the README.
 - Add Redis wiring with `action-add-redis` / `action_add_redis`. The generated
   wrapper exposes `ctx.REDIS` and `ctx.REDIS_PREFIX`; every Redis key used by
   action modules must be built from `ctx.REDIS_PREFIX` plus an app-local suffix.

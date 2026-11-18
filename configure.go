@@ -2091,6 +2091,8 @@ func writeJSONAtomic(path string, value interface{}, mode os.FileMode) error {
 }
 
 func credentialBearingMCPServer(name string) bool {
+	// "mongodb" is legacy (issue #230: Trustant never uses MongoDB); kept so
+	// entries written by older builds are still treated as credential-bearing.
 	switch name {
 	case "s3", "postgres", "redis", "milvus", "mongodb":
 		return true
@@ -2766,6 +2768,8 @@ func writeEnvFile(path string, vars map[string]string, order []string) error {
 	return os.WriteFile(path, []byte(strings.Join(lines, "\n")+"\n"), 0600)
 }
 
+// isServiceRuntimeEnvKey: MONGODB_URI is legacy (issue #230 removed MongoDB);
+// it stays reserved so a stale value in an app .env is never propagated.
 func isServiceRuntimeEnvKey(name string) bool {
 	return name == "MONGODB_URI"
 }

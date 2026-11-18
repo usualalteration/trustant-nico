@@ -40,8 +40,9 @@ Claude receive the same host-selected servers as native MCP tools and must use
 those tools directly instead of starting server commands. Use the exact tool
 names and argument schemas exposed by the active agent. A successful Pi
 `connect` proves both proxy reachability and that server's tool discovery.
-MongoDB is configured when the credential-free server list contains `mongodb`;
-its private connection environment must never enter model output.
+Trustant never uses MongoDB: there is no `mongodb` server. Store document data
+in PostgreSQL `JSONB` and use Redis only for cache, sessions, queues and simple
+key-value data.
 
 The optional `agentireact` server is valid only when the app's
 `vite.config.js` or `vite.config.ts` imports/references
@@ -61,12 +62,9 @@ Service MCP servers are read-only discovery and verification aids during
 application generation, not automatic runtime bindings for action code. Never
 use `postgres_execute_sql` or another service-MCP mutation to create schema,
 seed records, repair live state, or complete a feature; put durable changes in
-idempotent setup or public OpenServerless actions. Do not use
-`MDB_MCP_CONNECTION_STRING` in app source;
-do not invent `MONGODB_URI`, `MONGO_URL`, or `MDB_CONNECTION_STRING` runtime
-env vars. If `action_add_mongodb` is available, use it to generate the wrapper
-and then use `ctx.MONGODB_CLIENT` or `ctx.MONGODB`. If MongoDB has no official
-action/runtime binding, show `non configurato`.
+idempotent setup or public OpenServerless actions. Never use MongoDB
+(`pymongo`, `MongoClient`, `MONGODB_URI`, `MDB_*`); if the user asks for it,
+build on PostgreSQL `JSONB` via `ctx.POSTGRESQL` and say so in the README.
 If `action_add_redis` is available, use it to generate the wrapper and always
 build Redis keys from `ctx.REDIS_PREFIX`; never call `ctx.REDIS` with naked app
 keys.

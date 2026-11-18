@@ -136,7 +136,7 @@ Version 2 revalidates the host contract inside Pi and:
   `packages/**/*.zip` artifacts, requiring OpenServerless MCP action/connectors
   and edits only to business modules;
 - blocks mutating service-MCP operations such as PostgreSQL `execute_sql`,
-  Redis writes, MongoDB writes, S3 writes, and Milvus writes during generated
+  Redis writes, S3 writes, and Milvus writes during generated
   application work. Read-only service discovery and verification remain
   available; reproducible mutations belong in setup/public actions;
 - blocks Pi shell calls that would run `ops ide deploy` or start another

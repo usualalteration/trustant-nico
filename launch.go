@@ -106,18 +106,6 @@ type opsConfig struct {
 			Name string `json:"name"`
 		} `json:"db"`
 	} `json:"milvus"`
-	MongoDB struct {
-		URI              string `json:"uri"`
-		URL              string `json:"url"`
-		ConnectionString string `json:"connection_string"`
-		Host             string `json:"host"`
-		Port             int    `json:"port"`
-		Database         string `json:"database"`
-		Username         string `json:"username"`
-		Password         string `json:"password"`
-		AuthSource       string `json:"auth_source"`
-	} `json:"mongodb"`
-	MongoDBURI string `json:"MONGODB_URI"`
 }
 
 // opsConfigPath returns the path to ~/.ops/config.json.
@@ -237,18 +225,6 @@ func buildMCPFromOpsConfig(cfg *opsConfig) map[string]interface{} {
 		}
 	}
 
-	if uri := mongodbConnectionString(cfg); uri != "" {
-		mcp["mongodb"] = map[string]interface{}{
-			"type":    "local",
-			"command": []string{"mongodb-mcp-server"},
-			"environment": map[string]string{
-				"MDB_MCP_CONNECTION_STRING": uri,
-			},
-			"enabled": true,
-			"timeout": 30000,
-		}
-	}
-
 	if len(mcp) == 0 {
 		return nil
 	}
@@ -260,6 +236,7 @@ func buildMCPFromOpsConfig(cfg *opsConfig) map[string]interface{} {
 // opencode.json, never the global one (see spec/4-launch.md); the global writer
 // uses this to drop any that leaked into a global config written by older code.
 func isTrustantManagedMCPServer(name string) bool {
+	// "mongodb" is legacy (issue #230): no longer generated, still purged.
 	switch name {
 	case "s3", "postgres", "redis", "milvus", "mongodb", "openserverless", "react":
 		return true
@@ -285,7 +262,6 @@ func logOpsServiceBlocks(app string) {
 		{"postgres", cfg.Postgres.Database != ""},
 		{"redis", cfg.Redis.URL != "" || cfg.Redis.Port != 0},
 		{"milvus", cfg.Milvus.Host != ""},
-		{"mongodb", mongodbConnectionString(cfg) != ""},
 	} {
 		if s.present {
 			log.Printf("  - service %q configured for %s; MCP server will be generated", s.name, app)
@@ -293,18 +269,6 @@ func logOpsServiceBlocks(app string) {
 			log.Printf("  - service %q absent from ~/.ops/config.json for %s; MCP server will be skipped", s.name, app)
 		}
 	}
-}
-
-func appServiceRuntimeEnv(base []string) []string {
-	cfg, err := loadOpsConfig()
-	if err != nil {
-		log.Printf("Warning: failed to load ~/.ops/config.json for service runtime env: %s", err)
-		return base
-	}
-	if uri := mongodbConnectionString(cfg); uri != "" {
-		base = append(base, "MONGODB_URI="+uri)
-	}
-	return base
 }
 
 // appendEnvironmentOverrides removes inherited/application values for the
@@ -549,52 +513,6 @@ func writeTrustantPiRuntimeManifest(app, projectDir, browserURL, watcherLog stri
 		return "", fmt.Errorf("failed to publish Trustant Pi runtime manifest: %w", err)
 	}
 	return manifestPath, nil
-}
-
-// mongodbConnectionString returns a MongoDB URI only from the official
-// post-login config surface. Arbitrary workbench env vars do not enable MongoDB.
-func mongodbConnectionString(cfg *opsConfig) string {
-	for _, direct := range []string{
-		cfg.MongoDB.URI,
-		cfg.MongoDB.URL,
-		cfg.MongoDB.ConnectionString,
-		cfg.MongoDBURI,
-	} {
-		if direct = strings.TrimSpace(direct); direct != "" {
-			return direct
-		}
-	}
-
-	host := strings.TrimSpace(cfg.MongoDB.Host)
-	database := strings.Trim(strings.TrimSpace(cfg.MongoDB.Database), "/")
-	if host == "" || database == "" {
-		return ""
-	}
-	if strings.Contains(host, "://") {
-		return host
-	}
-
-	u := url.URL{
-		Scheme: "mongodb",
-		Host:   host,
-		Path:   "/" + database,
-	}
-	if cfg.MongoDB.Port != 0 && !strings.Contains(host, ":") {
-		u.Host = net.JoinHostPort(host, fmt.Sprintf("%d", cfg.MongoDB.Port))
-	}
-	if cfg.MongoDB.Username != "" {
-		if cfg.MongoDB.Password != "" {
-			u.User = url.UserPassword(cfg.MongoDB.Username, cfg.MongoDB.Password)
-		} else {
-			u.User = url.User(cfg.MongoDB.Username)
-		}
-	}
-	if cfg.MongoDB.AuthSource != "" {
-		q := u.Query()
-		q.Set("authSource", cfg.MongoDB.AuthSource)
-		u.RawQuery = q.Encode()
-	}
-	return u.String()
 }
 
 // redisUsername derives the Redis user from the config prefix: the prefix with
@@ -1413,7 +1331,7 @@ func handleLaunchGet(w http.ResponseWriter, r *http.Request, app string) {
 	log.Printf("Running ops ide deploy for %s...", app)
 	deployCmd := exec.Command("ops", "ide", "deploy")
 	deployCmd.Dir = workbenchPath
-	deployCmd.Env = appServiceRuntimeEnv(os.Environ())
+	deployCmd.Env = os.Environ()
 	if output, err := deployCmd.CombinedOutput(); err != nil {
 		log.Printf("ops ide deploy for %s failed: %s, output: %s", app, err, string(output))
 		json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("ops ide deploy failed: %s", string(output))})
@@ -1542,12 +1460,11 @@ func handleLaunchGet(w http.ResponseWriter, r *http.Request, app string) {
 	truacpCmd.Dir = workbenchPath
 	truacpCmd.Stdout = os.Stdout
 	truacpCmd.Stderr = os.Stderr
-	truacpCmd.Env = appServiceRuntimeEnv(os.Environ())
+	truacpCmd.Env = os.Environ()
 	appEnv := parseEnvFile(filepath.Join(workbenchPath, ".env"))
 	for key, value := range appEnv {
-		// Service bindings are reconstructed from the post-login ops config by
-		// appServiceRuntimeEnv; accepting duplicates from .env could select stale
-		// credentials after an app switch.
+		// Legacy service bindings (MONGODB_URI, issue #230) are never passed
+		// to the agent, even when a stale .env still carries them.
 		if isServiceRuntimeEnvKey(key) {
 			continue
 		}
@@ -1649,7 +1566,7 @@ func handleLaunchGet(w http.ResponseWriter, r *http.Request, app string) {
 	develOutput := io.MultiWriter(os.Stdout, develLog)
 	develCmd.Stdout = develOutput
 	develCmd.Stderr = develOutput
-	develCmd.Env = appServiceRuntimeEnv(os.Environ())
+	develCmd.Env = os.Environ()
 	// Join the same process group as truacp.
 	develCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: pgid}
 
@@ -1890,7 +1807,7 @@ func handleRedeploy(w http.ResponseWriter, r *http.Request) {
 	log.Printf("Redeploy: running ops ide deploy for %s...", req.Name)
 	deployCmd := exec.Command("ops", "ide", "deploy")
 	deployCmd.Dir = workbenchPath
-	deployCmd.Env = appServiceRuntimeEnv(os.Environ())
+	deployCmd.Env = os.Environ()
 	if deployOutput, err := deployCmd.CombinedOutput(); err != nil {
 		send("error", fmt.Sprintf("ops ide deploy failed: %s\n%s", err, string(deployOutput)))
 		return
@@ -1925,7 +1842,7 @@ func handleRedeploy(w http.ResponseWriter, r *http.Request) {
 	develOutput := io.MultiWriter(os.Stdout, develLog)
 	develCmd.Stdout = develOutput
 	develCmd.Stderr = develOutput
-	develCmd.Env = appServiceRuntimeEnv(os.Environ())
+	develCmd.Env = os.Environ()
 	develCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: pgid}
 
 	if err := develCmd.Start(); err != nil {
