@@ -19,7 +19,7 @@ In tutte e tre le modalità:
   Trustant.
 - `localhost` dentro una action indica esclusivamente il container della
   action.
-- Le action accedono a Redis, MongoDB, Postgres e S3 tramite i binding generati
+- Le action accedono a Redis, Postgres e S3 tramite i binding generati
   in `ctx`, non tramite MCP o URL pubblici.
 - Il frontend usa URL relativi come `/api/my/v1/action`.
 - Una action non deve chiamare action sorelle tramite `miniops.me`,
@@ -165,7 +165,7 @@ La matrice che l'assistente deve conoscere è:
 | Browser | computer dell'utente | sì | mai direttamente |
 | Trustant in sviluppo VM | VM | tramite proxy Trustant | configurazione e `kubefwd` |
 | Trustant nel pod | pod Trustant | ingress o sidecar | DNS e binding |
-| Action OpenServerless | pod della action | non usare per composizione | `ctx.REDIS`, `ctx.MONGODB`, `ctx.POSTGRESQL`, `ctx.S3_CLIENT` |
+| Action OpenServerless | pod della action | non usare per composizione | `ctx.REDIS`, `ctx.POSTGRESQL`, `ctx.S3_CLIENT` |
 
 Per lo Stack Nuvolaris la soluzione corretta è quindi una delle seguenti:
 

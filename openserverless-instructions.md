@@ -228,10 +228,12 @@ Choose the backend shape this way:
 - Use S3 for object/file data.
 - Use PostgreSQL for relational data.
 - Use Redis for cache, ephemeral state, and authenticated application sessions.
-- Use MongoDB for document data only when the official MongoDB capability is
-  configured.
 - Use Milvus for vector search.
-- Do not use Milvus as a replacement for MongoDB.
+- Never use MongoDB or any other document database. Store document/JSON data
+  in PostgreSQL `JSONB` columns via `action-add-postgresql` / `ctx.POSTGRESQL`.
+  Use Redis only for cache, sessions, queues, and simple key-value data. If the
+  user asks for MongoDB, implement the feature on PostgreSQL `JSONB` and state
+  that substitution in the app README.
 - Use the Agentic React MCP only when the Vite config imports/references
   `@agentic-react/vite` and invokes `AgenticReact()`.
 
@@ -254,7 +256,6 @@ depending on the client. Use the matching exposed tool:
   wiring.
 - `action-add-redis` / `action_add_redis`: add Redis service wiring.
 - `action-add-milvus` / `action_add_milvus`: add Milvus service wiring.
-- `action-add-mongodb` / `action_add_mongodb`: add MongoDB service wiring.
 - `secret-unbind` / `secret_unbind`: remove an obsolete generated secret
   binding atomically without reading or deleting its value. Use it to repair a
   legacy invalid managed-variable binding; never edit `__main__.py` manually.
@@ -325,7 +326,7 @@ simulate routes. They are not valid Trustant/OpenServerless endpoints.
 
 `.mcp.json` is regenerated at launch with an `mcpServers` object. Pi exposes
 those servers through one lazy `mcp` proxy tool; use `mcp({})` to inspect server
-status and `mcp({ server: "mongodb" })` to list one server's tools. A missing
+status and `mcp({ server: "postgres" })` to list one server's tools. A missing
 direct tool name or an MCP process that has not started does not mean the server
 is absent. Use the generated configuration and wrappers instead of inventing
 connection details.
@@ -348,8 +349,6 @@ connection details.
   `redis-cli`.
 - `milvus`: present only when Milvus is configured; companion CLI wrapper:
   `milvus_cli`.
-- `mongodb`: present only when MongoDB is configured as an official
-  OpenServerless capability in `~/.ops/config.json`.
 
 Service MCP servers are generated from `~/.ops/config.json` after
 `ops ide login`. If a service block is missing, the corresponding MCP server is
@@ -363,30 +362,16 @@ actions. A successful service MCP call proves only that the assistant can
 inspect that service; it is not proof that the app action can use the same
 connection. For action runtime access, use the OpenServerless action service
 tools such as `action-add-redis`, `action-add-postgresql`, `action-add-s3`,
-`action-add-milvus`, and `action-add-mongodb`. If no matching action service
+and `action-add-milvus`. If no matching action service
 tool or generated runtime binding exists, the app must expose a deterministic
 `non configurato`/error state instead of inventing a backend connection.
 
-MongoDB is a document database capability, separate from Milvus/vector search.
-If the user asks for MongoDB and the `mongodb` MCP server or official MongoDB
-environment is absent, implement a deterministic `non configurato`/error state
-in the app and README. Do not ask the user how to configure MongoDB, do not
-invent connection details, and do not use Milvus, `MILVUS_*`, `pymilvus`, or
-`milvus_cli` as a substitute.
-
-When `action-add-mongodb` / `action_add_mongodb` is exposed, use it to generate
-the MongoDB wrapper before writing module code. The generated wrapper exposes
-`ctx.MONGODB_CLIENT` and `ctx.MONGODB`; business modules should use those
-context values instead of reading connection strings directly.
-
-Do not use `MDB_MCP_CONNECTION_STRING` in app source, action modules, wrappers,
-README instructions, or frontend code. That variable belongs only to the
-generated MongoDB MCP server process. Do not invent `MONGODB_URI`, `MONGO_URL`,
-`MONGO_CONNECTION_STRING`, `MDB_CONNECTION_STRING`, or similar MongoDB runtime
-variables unless a generated action wrapper already exposes an official MongoDB
-runtime binding. If MongoDB is visible only through the MCP server and not
-through an action service tool/runtime binding, report MongoDB as
-`non configurato` in the app path.
+Trustant never uses MongoDB. There is no MongoDB MCP server and no MongoDB
+action binding. Do not import `pymongo`, do not use `MongoClient`, and do not
+read `MONGODB_URI`, `MONGO_URL`, `MDB_*` or similar variables; the action
+checker rejects them. For document-style data use PostgreSQL `JSONB` columns
+(`ctx.POSTGRESQL`); for ephemeral or simple key-value data use Redis
+(`ctx.REDIS` with `ctx.REDIS_PREFIX`). Do not use Milvus as a document store.
 
 You may inspect `~/.ops/config.json` only to understand which services exist.
 Do not copy values from it into app code, wrapper code, logs, docs, or frontend
@@ -451,8 +436,8 @@ not use naked Redis keys such as `"stack-e2e-..."` directly with `ctx.REDIS`;
 Nuvolaris Redis ACLs only allow the configured user prefix.
 
 Service MCP servers are read-only discovery and verification tools during
-application generation. Never use `postgres_execute_sql`, Redis/MongoDB/S3/
-Milvus mutation tools, or equivalent direct service writes to create schema,
+application generation. Never use `postgres_execute_sql`, Redis/S3/Milvus
+mutation tools, or equivalent direct service writes to create schema,
 seed data, repair application state, or complete a feature. Put idempotent
 schema and seed behavior in setup actions and application writes in public
 OpenServerless actions so a new instance reproduces the same state.
@@ -497,10 +482,10 @@ multiple independent checks, let the frontend call the relative endpoints; for
 server-side aggregation, add every required generated service binding to one
 action and use its `ctx` clients directly.
 
-One action may use MongoDB and Milvus independently. Use
-`ctx.MONGODB_CLIENT` / `ctx.MONGODB` for document-database operations and
-`ctx.MILVUS` for vector operations; do not remove either legitimate check merely
-because both appear in the same business module.
+One action may use PostgreSQL and Milvus independently. Use
+`ctx.POSTGRESQL` for relational/JSONB document operations and `ctx.MILVUS` for
+vector operations; do not remove either legitimate check merely because both
+appear in the same business module.
 
 Do not invent pod IPs, raw service names, public domains, or replacement
 localhost URLs for app verification. For app endpoints from this shell, prefer:
@@ -790,8 +775,6 @@ When an app has login or registration:
 - Table creation belongs in `setup/database`.
 - Redis key preparation belongs in `setup/cache`.
 - Milvus collection creation belongs in `setup/collection`.
-- MongoDB collection/index preparation belongs in an idempotent setup action
-  only when MongoDB is configured.
 - Private S3 data preload belongs in `setup/upload`.
 - Public web assets belong in `public/`, not in setup uploads.
 - Wait for the managed watcher and run the action checker after creating or
@@ -814,7 +797,7 @@ Examples of idempotent setup:
 - `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...`
 - Redis `SET ... NX` for keys that should only be seeded once.
 - Check Milvus collection existence before creating it.
-- Check MongoDB collection/index existence before creating it.
+- Create JSONB indexes with `CREATE INDEX IF NOT EXISTS ...`.
 - Upload S3 objects only when missing or changed.
 
 ## Dependencies
@@ -825,7 +808,7 @@ Examples of idempotent setup:
   ([requirements.txt](https://raw.githubusercontent.com/trustable-ai/openserverless-runtimes/refs/heads/0.9.0/runtime/python/v3.12/requirements.txt)):
   `bcrypt`, `beautifulsoup4` (`bs4`), `boto3`, `feedparser`, `httplib2`,
   `joblib`, `kafka-python`, `langchain`, `langdetect`, `minio`, `nltk`,
-  `ollama`, `openai`, `pg8000`, `plotly`, `psycopg`, `pymilvus`, `pymongo`,
+  `ollama`, `openai`, `pg8000`, `plotly`, `psycopg`, `pymilvus`,
   `python-dateutil`, `pyyaml` (`yaml`), `redis`, `requests`, and their
   dependencies (e.g. `numpy`, `pandas`, `pydantic`, `httpx`, `python-dotenv`,
   `pycryptodome`). `action-requirements` tells you whether a library is
@@ -840,7 +823,7 @@ Examples of idempotent setup:
   Trustant blocks these attempts.
 - If action logs show `ModuleNotFoundError`, fix the dependency or import before
   doing any other validation. Do not mark the feature complete.
-- Add PostgreSQL, Redis, S3, Milvus, MongoDB, and secrets with the corresponding
+- Add PostgreSQL, Redis, S3, Milvus, and secrets with the corresponding
   action/service tool. Do not hardcode credentials and do not manually edit
   generated wrapper code.
 - `OPS_USER`, `OPS_PASSWORD`, `OPS_APIHOST`, `OPS_REPO`, and `OPS_SKILLS` are
@@ -856,8 +839,7 @@ restrictions are enforced by the platform:
 - PostgreSQL database is named after the user; the default schema is
   `<user>_schema`.
 - Milvus database is named after the user.
-- MongoDB is available only when the official post-login config exposes a
-  MongoDB block or derived connection string.
+- MongoDB is never available to Trustant apps; use PostgreSQL `JSONB`.
 - Redis keys used by actions must be built with the generated
   `ctx.REDIS_PREFIX`; do not guess `<user>:` manually and do not use naked keys.
 - S3 writable buckets are `<user>-data` for private app data and `<user>-web`

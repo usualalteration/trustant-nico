@@ -490,7 +490,6 @@ NAME                                    VERSION  LICENSE     HOMEPAGE
 @earendil-works/pi-storage-sqlite-node  0.82.0   MIT         https://github.com/earendil-works/pi
 @earendil-works/pi-tui                  0.82.0   MIT         https://github.com/earendil-works/pi
 @openai/codex                           0.144.6  Apache-2.0  https://github.com/openai/codex
-mongodb-mcp-server                      1.9.0    Apache-2.0  https://github.com/mongodb-js/mongodb-mcp-server
 pi-mcp-adapter                          2.11.0   MIT         https://www.npmjs.com/package/pi-mcp-adapter
 pi-web-access                           0.13.0   MIT         https://www.npmjs.com/package/pi-web-access
 tsx                                     latest   MIT         https://github.com/privatenumber/tsx
@@ -539,7 +538,6 @@ click                 8.5.0        BSD-3-Clause                                 
 cloudpickle           3.1.2        BSD-3-Clause                                        https://pypi.org/project/cloudpickle
 defusedxml            0.7.1        PSF-2.0                                             https://pypi.org/project/defusedxml
 distro                1.9.0        Apache-2.0                                          https://pypi.org/project/distro
-dnspython             2.8.0        ISC                                                 https://pypi.org/project/dnspython
 feedparser            6.0.14       BSD-2-Clause                                        https://pypi.org/project/feedparser
 feedparser-sgmllib    2.1.0        PSF-2.0                                             https://pypi.org/project/feedparser-sgmllib
 grpcio                1.84.0       Apache-2.0                                          https://pypi.org/project/grpcio
@@ -585,7 +583,6 @@ pycryptodome          3.23.0       BSD-2-Clause AND LicenseRef-Public-Domain    
 pydantic              2.13.5       MIT                                                 https://pypi.org/project/pydantic
 pydantic-core         2.46.5       MIT                                                 https://pypi.org/project/pydantic-core
 pymilvus              3.0.2        Apache-2.0                                          https://pypi.org/project/pymilvus
-pymongo               4.18.1       Apache-2.0                                          https://pypi.org/project/pymongo
 pyparsing             3.3.2        MIT                                                 https://pypi.org/project/pyparsing
 python-dateutil       2.9.0.post0  Apache-2.0 AND BSD-3-Clause                         https://pypi.org/project/python-dateutil
 python-dotenv         1.2.3        BSD-3-Clause                                        https://pypi.org/project/python-dotenv

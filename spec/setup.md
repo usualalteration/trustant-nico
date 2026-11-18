@@ -265,7 +265,7 @@ Do not install OpenCode, use `https://opencode.ai/install`, or replace the
 checked-in Trustant ACP adapter with a public unpinned package.
 
 12. install in ~/.local/bin the mcp servers for openserverless, redis,
-milvus, postgres, mongodb, and s3 using the same procedure in image/Dockerfile
+milvus, postgres, and s3 (never MongoDB, issue #230) using the same procedure in image/Dockerfile
 (do not use `/opt/uv/*` vars and install everything for the local user).
 
 The python-based mcp servers (postgres, redis, milvus) are installed with uv,
@@ -327,13 +327,13 @@ force-reinstall the pinned specification and verify the resulting receipt.
 Package-name-only “already installed” output is not sufficient evidence because
 it can leave an executable created from the previous upstream source.
 
-Package the repository `mcp` submodule and install that tarball together with
-the mongodb server using npm (global, under the selected user-owned npm prefix):
+Package the repository `mcp` submodule and install that tarball using npm
+(global, under the selected user-owned npm prefix):
 
 ```
 pack_dir=$(mktemp -d)
 (cd mcp && npm pack --pack-destination "$pack_dir")
-npm install -g tsx "$pack_dir"/openserverless-mcp-*.tgz mongodb-mcp-server@1.9.0
+npm install -g tsx "$pack_dir"/openserverless-mcp-*.tgz
 ```
 
 Do not install OpenServerless MCP directly from GitHub in development: that
@@ -341,10 +341,9 @@ would overwrite Trustant's checked-out protocol-error, secret, and connector
 fixes whenever `run.sh` recreates the environment. Verify that the installed
 source contains the local `secret-unbind` registration.
 
-Pin MongoDB MCP to `1.9.0`: it is the last upstream release whose direct Zod
-dependency (`^3.25.76`) satisfies the `@mongosh/arg-parser` peer contract.
-Newer `1.10.0` through `1.13.0` releases require Zod 4 while the parser still
-declares Zod 3 and therefore produce an invalid npm peer tree.
+Trustant never uses MongoDB (issue #230): `mongodb-mcp-server` is not
+installed, and setup runs an idempotent `npm uninstall -g mongodb-mcp-server`
+to remove the copy older setups installed.
 
 The VM development packages also include `python3-pytest` and
 `python3-dotenv`, matching generated application tests without requiring the
@@ -371,7 +370,7 @@ install -m 0755 image/mcp-s3 "$HOME/.local/bin/mcp-s3"
 
 The Go server writes each app's `.mcp.json` referencing these servers by command
 name (mcp-s3, postgres-mcp, trustant-redis-mcp, mcp-server-milvus,
-mongodb-mcp-server, openserverless-mcp), so "MCP ready" means all of them resolve
+openserverless-mcp), so "MCP ready" means all of them resolve
 on the guest's PATH.
 
 13. Build and install TruACP/Pi from the checked-out `trustant-acp` submodule.

@@ -313,7 +313,7 @@ e2e_provider_main() {
   export TRUSTANT_E2E_PROMPT_EXPECT_CHANGES=1
   export TRUSTANT_E2E_PROMPT_TIMEOUT_MS="${TRUSTANT_E2E_PROMPT_TIMEOUT_MS:-2400000}"
   export TRUSTANT_E2E_PROMPT_TEST_TIMEOUT_MS="${TRUSTANT_E2E_PROMPT_TEST_TIMEOUT_MS:-2700000}"
-  export TRUSTANT_E2E_PROMPT="${TRUSTANT_E2E_PROMPT:-Vorrei una pagina Stack Nuvolaris che mostri in modo semplice se Redis, MongoDB, PostgreSQL e S3 funzionano davvero. Per ogni servizio esegui una vera prova di scrittura e rilettura dello stesso valore e mostra il valore verificato. Prepara automaticamente quanto serve, controlla tutto tu e non chiedermi di usare la shell.}"
+  export TRUSTANT_E2E_PROMPT="${TRUSTANT_E2E_PROMPT:-Vorrei una pagina Stack Nuvolaris che mostri in modo semplice se Redis, PostgreSQL e S3 funzionano davvero. Per ogni servizio esegui una vera prova di scrittura e rilettura dello stesso valore e mostra il valore verificato. Prepara automaticamente quanto serve, controlla tutto tu e non chiedermi di usare la shell.}"
   if [ -z "${TRUSTANT_E2E_APP:-}" ] && [ -z "${TRUSTANT_E2E_REPO:-}" ]; then
     export TRUSTANT_E2E_REPO=trustable-ai/trureact
   fi

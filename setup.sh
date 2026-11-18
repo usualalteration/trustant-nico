@@ -569,7 +569,7 @@ command -v pi &>/dev/null || fail "pi not on PATH after install (expected $NPM_G
 command -v codex &>/dev/null || fail "codex not on PATH after install (expected $NPM_GLOBAL_BIN/codex)"
 ok "pi toolchain installed (${#PI_PACKAGES[@]} pinned packages)"
 
-# --- 12. Install MCP servers (openserverless, redis, milvus, postgres, mongodb, s3) ---
+# --- 12. Install MCP servers (openserverless, redis, milvus, postgres, s3) ---
 # Mirrors image/Dockerfile but for the local user (~/.local/bin, no /opt/uv/*).
 echo "--- Installing MCP servers for local use ---"
 MCP_BIN="$HOME/.local/bin"
@@ -632,7 +632,7 @@ grep -Fq "$MILVUS_MCP_REPO" "$MILVUS_MCP_RECEIPT" &&
   grep -Fq "$MILVUS_MCP_REF" "$MILVUS_MCP_RECEIPT" \
   || fail "installed Milvus MCP does not match ${MILVUS_MCP_REPO}@${MILVUS_MCP_REF}"
 
-# OpenServerless and MongoDB MCP servers via npm. Package the checked
+# OpenServerless MCP server via npm. Package the checked
 # out sources so Lima/WSL runs exactly what the image build consumes; no guest
 # Git metadata is needed, which also supports host-mounted worktrees.
 command -v npm &>/dev/null || fail "npm is required to install the npm MCP servers"
@@ -642,8 +642,11 @@ OPENSERVERLESS_MCP_PACK_DIR=$(mktemp -d)
   || fail "packing local openserverless-mcp failed"
 OPENSERVERLESS_MCP_PACKAGE=$(find "$OPENSERVERLESS_MCP_PACK_DIR" -maxdepth 1 -name 'openserverless-mcp-*.tgz' -print -quit)
 [[ -n "$OPENSERVERLESS_MCP_PACKAGE" ]] || fail "local openserverless-mcp package was not created"
-( cd "$HOME" && npm install -g --prefix "$NPM_GLOBAL_PREFIX" tsx "$OPENSERVERLESS_MCP_PACKAGE" mongodb-mcp-server@1.9.0 ) \
-  || fail "npm install of openserverless-mcp/mongodb-mcp-server failed"
+( cd "$HOME" && npm install -g --prefix "$NPM_GLOBAL_PREFIX" tsx "$OPENSERVERLESS_MCP_PACKAGE" ) \
+  || fail "npm install of openserverless-mcp failed"
+# Trustant never uses MongoDB (issue #230): remove the MCP server older
+# setups installed. Idempotent; a missing package is not an error.
+( cd "$HOME" && npm uninstall -g --prefix "$NPM_GLOBAL_PREFIX" mongodb-mcp-server >/dev/null 2>&1 ) || true
 rm -rf "$OPENSERVERLESS_MCP_PACK_DIR"
 grep -qF 'secret-unbind' "$NPM_GLOBAL_PREFIX/lib/node_modules/openserverless-mcp/src/index.ts" \
   || fail "installed openserverless-mcp does not match the checked-out source"
@@ -692,7 +695,7 @@ done
 rm -f /tmp/mcp-probe.$$
 ok "postgres, redis and milvus MCP servers import cleanly"
 
-ok "MCP servers (browser, react, openserverless, postgres, redis, milvus, mongodb, s3) installed in $MCP_BIN"
+ok "MCP servers (browser, react, openserverless, postgres, redis, milvus, s3) installed in $MCP_BIN"
 
 # --- 13. Build and install truacp (the ACP server that fronts `pi`) ---
 # truacp serves its own React UI on :4096 and spawns the `pi` coding agent over

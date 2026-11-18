@@ -40,7 +40,7 @@
 
   <rect x="245" y="310" width="610" height="130" class="box"/>
   <text x="275" y="345" class="label">Guarded Stack application runner</text>
-  <text x="275" y="375" class="small">OpenCode prompt: real Redis, MongoDB, PostgreSQL and S3 read/write</text>
+  <text x="275" y="375" class="small">OpenCode prompt: real Redis, PostgreSQL and S3 read/write</text>
   <text x="275" y="400" class="small">parent + task-child tools: MCP mutation, deploy, setup, completion, browser result</text>
   <path d="M885 230 V275 H550 V310" class="line"/>
 

@@ -369,13 +369,11 @@ use generated service bindings directly.
 3. Per-app `development` overrides
 
 4. Service runtime bindings from official OpenServerless config are not written
-   to `.env`. When `~/.ops/config.json` exposes an official MongoDB capability,
-   Trustant may pass the resolved URI as `MONGODB_URI` only in the process
-   environment of TruACP/Pi, `ops ide deploy`, and `ops ide devel`, so
-   `action_add_mongodb` can bind it without exposing the credential in the
-   editable app configuration. A casual per-app/workbench `MONGODB_URI` must not
-   enable MongoDB by itself; the source of truth remains the official post-login
-   config.
+   to `.env`. Trustant never uses MongoDB (issue #230): even when
+   `~/.ops/config.json` carries a MongoDB block, no `MONGODB_URI` is passed to
+   TruACP/Pi, `ops ide deploy` or `ops ide devel`. `MONGODB_URI` stays a
+   reserved key (`isServiceRuntimeEnvKey`) so a stale value in an app `.env` is
+   never written or propagated.
 
 Production `.env.production` is written from the per-app `production` values.
 
@@ -407,7 +405,7 @@ launch. See [19-import.md](19-import.md) for the format and the resolution rules
   requirement the user is neither able nor ever asked to satisfy. They are also
   ignored when a foreign manifest happens to list them.
 - Keys excluded from `.env` are excluded here too: `isServiceRuntimeEnvKey`
-  (currently `MONGODB_URI`).
+  (currently only the legacy `MONGODB_URI`).
 - When nothing is left to declare, **no file is written**, and a stale manifest
   is removed. An app that imports nothing declares no contract; a zero-byte
   committed file would assert one.

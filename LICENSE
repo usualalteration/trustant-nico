@@ -1827,9 +1827,8 @@ Permission is granted to anyone to use this software for any purpose, including 
 ===============================================================================
 License: ISC
 ===============================================================================
-Used by: @ungap/structured-clone, dnspython, github.com/coder/websocket,
-inherits, isexe, once, semver, setprototypeof, sudo, which, wrappy,
-zod-to-json-schema
+Used by: @ungap/structured-clone, github.com/coder/websocket, inherits,
+isexe, once, semver, setprototypeof, sudo, which, wrappy, zod-to-json-schema
 -------------------------------------------------------------------------------
 
 ISC License

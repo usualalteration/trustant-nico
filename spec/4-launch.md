@@ -275,10 +275,8 @@ If it terminates with 0 continue otherwise return error
 
 After `ops ide login` succeeds, regenerate the app `.env` before `ops ide clean`
 and `ops ide deploy`. Login refreshes `~/.ops/config.json` with the current app
-service bindings. Service credentials such as MongoDB must stay out of the
-editable `.env`; if an action wrapper needs `MONGODB_URI`, Trustant derives it
-from the post-login config and passes it only to the launch/deploy process
-environment.
+service bindings. Service credentials must stay out of the editable `.env`.
+MongoDB is never used (issue #230): no `MONGODB_URI` is derived or passed.
 
 ## generate the per-app project assets
 
@@ -693,56 +691,18 @@ itself with an atomic rename; never follow it and overwrite the upstream
 package-managed target. Wrapper-generation failures are returned by launch
 without logging credentials.
 
-# if config.mongodb is defined and has a connection string add:
+# MongoDB is never generated
 
-MongoDB follows the same service-MCP gating as S3, PostgreSQL, Redis, and
-Milvus. It is generated only from the official post-login config surface read
-from `~/.ops/config.json`, never from arbitrary workbench environment
-variables. Enable it when either:
-
-- `config.mongodb.uri`, `config.mongodb.url`, or
-  `config.mongodb.connection_string` is non-empty;
-- top-level `config.MONGODB_URI` is non-empty and was produced by the
-  OpenServerless login/config path;
-- `config.mongodb.host` and `config.mongodb.database` are both present, in
-  which case derive `mongodb://<user>:<password>@<host>:<port>/<database>` from
-  the same official block, with optional `auth_source` rendered as
-  `authSource`.
-
-Do not enable MongoDB MCP from a casual `MONGODB_URI` in a copied `.env` file.
-If the official MongoDB capability is absent, the app agent must treat MongoDB
-as `non configurato` rather than asking the user for infrastructure details or
-mapping MongoDB to Milvus/vector search.
-
-`MDB_MCP_CONNECTION_STRING` is private to the generated MongoDB MCP server
-process. It must not be documented or used as an app action runtime variable.
-When the same official MongoDB capability is present, launch/deploy may expose
-`MONGODB_URI=<resolved mongodb connection string>` only in the internal process
-environment used by truacp and `ops ide deploy`/`ops ide devel`; it must not
-be written to the app `.env` or shown in the app environment editor. This is the
-action runtime binding consumed by `action-add-mongodb` / `action_add_mongodb`;
-the assistant must use that tool to generate a wrapper that reads the official
-`MONGODB_URI` action parameter and exposes `ctx.MONGODB_CLIENT` plus
-`ctx.MONGODB` to business modules.
-The app agent and checker must also reject guessed action env vars such as
-`MONGODB_URI`, `MONGO_URL`, `MONGO_CONNECTION_STRING`, or
-`MDB_CONNECTION_STRING` unless a generated action wrapper exposes an official
-MongoDB binding.
-
-```
-"mongodb": {
-  "type": "stdio",
-  "lifecycle": "eager",
-  "command": "mongodb-mcp-server",
-  "env": {
-    "MDB_MCP_CONNECTION_STRING": "<resolved mongodb connection string>"
-  }
-}
-```
-
-The Trustant runtime image installs the official MongoDB MCP server at build
-time as `mongodb-mcp-server`, so launch must not use `npx` or download packages
-at runtime.
+Trustant never uses MongoDB (issue #230). Even when `~/.ops/config.json` has a
+`mongodb` block or a top-level `MONGODB_URI` (the platform still provisions it
+for `adduser --all`), launch generates **no** `mongodb` MCP server, passes no
+`MONGODB_URI` to truacp, `ops ide deploy` or `ops ide devel`, and the runtime
+image does not install `mongodb-mcp-server`. Document data goes to PostgreSQL
+`JSONB`; Redis covers cache, sessions, queues and simple key-value data. The
+action checker rejects `pymongo`, `MongoClient`, `ctx.MONGODB*`, `MONGODB_URI`,
+`MONGO_*` and `MDB_*CONNECTION_STRING` in action sources. `mongodb` remains in
+`isTrustantManagedMCPServer`/`credentialBearingMCPServer` only so entries
+written by older builds are purged.
 
 The Trustant runtime image wraps the external `mcp-s3` binary. The real binary
 is kept as `/usr/local/bin/mcp-s3-real`, while `/usr/local/bin/mcp-s3` filters
@@ -808,7 +768,7 @@ it. The action tools come from the
 
 `.mcp.json` is written in credential-free standard `mcpServers` form (see "MCP servers"
 above) and contains `openserverless`, `react`, the optional
-`agentireact`, and any of `s3`/`postgres`/`redis`/`milvus`/`mongodb` whose config
+`agentireact`, and any of `s3`/`postgres`/`redis`/`milvus` whose config
 block is present. Pi reads it via the `pi-mcp-adapter` extension. The complete
 second file is host-private rather than agent-specific: TruACP translates it to
 ACP `mcpServers` for Codex and Claude, while the Pi launcher consumes it without

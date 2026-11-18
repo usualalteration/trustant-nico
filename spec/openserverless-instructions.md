@@ -315,10 +315,11 @@ The guidance must tell assistants how to choose the backend shape:
 - use S3 for object/file data;
 - use PostgreSQL for relational data;
 - use Redis for cache, ephemeral state, and authenticated app sessions;
-- use MongoDB for document data only when the official MongoDB capability is
-  configured;
 - use Milvus for vector search;
-- never use Milvus as a replacement for MongoDB;
+- never use MongoDB or any document database (issue #230): document/JSON data
+  goes to PostgreSQL `JSONB` via `action-add-postgresql` / `ctx.POSTGRESQL`;
+  Redis only for cache, sessions, queues and simple key-value data; if the user
+  asks for MongoDB, build on PostgreSQL `JSONB` and state it in the README;
 - use the Agentic React MCP only when the Vite config imports/references
   `@agentic-react/vite` and invokes `AgenticReact()`.
 
@@ -453,8 +454,7 @@ Required MCP/service guidance:
   is `redis-cli`.
 - `milvus` is present only when Milvus is configured. The companion CLI wrapper
   is `milvus_cli`.
-- `mongodb` is present only when MongoDB is configured as an official
-  OpenServerless capability in `~/.ops/config.json`.
+- There is never a `mongodb` server (issue #230).
 
 The guidance must say that service MCP servers are generated from
 `~/.ops/config.json` after `ops ide login`, and that missing service blocks mean
@@ -483,27 +483,19 @@ not automatic runtime bindings. A successful service MCP call does not prove
 that a Python action has an env var, action parameter, or `ctx` binding for the
 same service. Runtime service access must come from the OpenServerless action
 service tools (`action-add-redis`, `action-add-postgresql`, `action-add-s3`,
-`action-add-milvus`, `action-add-mongodb`, and secret wiring) or generated
+`action-add-milvus`, and secret wiring) or generated
 runtime contract; otherwise the app must report a
 deterministic `non configurato`/error state instead of inventing connection
 details.
 
-The guidance must say that MongoDB is a document database capability, separate
-from Milvus/vector search. If the user asks for MongoDB and the `mongodb` MCP
-server or official MongoDB environment is absent, assistants must implement a
-deterministic `non configurato`/error state in the app and README. They must
-not ask the user how to configure MongoDB, invent connection details, or use
-Milvus, `MILVUS_*`, `pymilvus`, or `milvus_cli` as a substitute.
-When `action-add-mongodb` / `action_add_mongodb` is exposed, assistants must use
-it to generate the MongoDB wrapper and then use `ctx.MONGODB_CLIENT` /
-`ctx.MONGODB` from business modules instead of reading connection strings
-directly.
-The guidance and checker must explicitly forbid app source/action code from
-using `MDB_MCP_CONNECTION_STRING`, because it belongs only to the generated
-MongoDB MCP server process and is not an app runtime binding.
-The checker must also fail action modules that guess MongoDB runtime env vars
-such as `MONGODB_URI`, `MONGO_URL`, `MONGO_CONNECTION_STRING`, or
-`MDB_CONNECTION_STRING` when no generated MongoDB wrapper/binding exists.
+The guidance must say that Trustant never uses MongoDB (issue #230): there is
+no `mongodb` MCP server and no `action-add-mongodb` tool. Assistants must not
+import `pymongo`, use `MongoClient`, or read `MONGODB_URI`, `MONGO_*` or
+`MDB_*` variables, and must not ask the user how to configure MongoDB or use
+Milvus as a document store. The checker must fail any action module or wrapper
+that uses `pymongo`, `MongoClient`, `ctx.MONGODB*`, `init_mongo*`,
+`MONGODB_URI`, `MONGO_URL`, `MONGO_CONNECTION_STRING` or
+`MDB_*CONNECTION_STRING`.
 
 The launch process also writes `<workbenchdir>/<app>/.mcp.json` in Claude Code
 format with the same MCP servers. The embedded guidance can mention this for
@@ -824,8 +816,6 @@ The embedded guidance must say:
 - table creation belongs in `setup/database`;
 - Redis key preparation belongs in `setup/cache`;
 - Milvus collection creation belongs in `setup/collection`;
-- MongoDB collection/index preparation belongs in an idempotent setup action
-  only when MongoDB is configured;
 - private S3 data preload belongs in `setup/upload`;
 - public web assets belong in `public/`, not in setup uploads;
 - run `ops ide deploy` after creating or changing any action, then run
@@ -866,7 +856,7 @@ The embedded guidance must say:
 - editor, LSP, TypeScript, lint, and tool diagnostics that mention generated or
   edited files are validation failures. Assistants must fix the diagnostic or
   explain why it is stale with a successful bounded command that proves it;
-- PostgreSQL, Redis, S3, Milvus, MongoDB, and secrets are added with the corresponding
+- PostgreSQL, Redis, S3, Milvus, and secrets are added with the corresponding
   action/service tool, not by manually editing generated wrapper code or
   hardcoding credentials.
 - `OPS_USER`, `OPS_PASSWORD`, `OPS_APIHOST`, `OPS_REPO`, and `OPS_SKILLS` are
@@ -881,8 +871,7 @@ The embedded guidance must tell assistants to retrieve the current user with
 - PostgreSQL database is named after the user; the default schema is
   `<user>_schema`.
 - Milvus database is named after the user.
-- MongoDB is available only when the official post-login config exposes a
-  MongoDB block or derived connection string.
+- MongoDB is never available to Trustant apps; use PostgreSQL `JSONB`.
 - Redis action keys must be built with the generated `ctx.REDIS_PREFIX`; the
   assistant must not guess `<user>:` manually or use naked Redis keys.
 - S3 writable buckets are `<user>-data` for private app data and `<user>-web`

@@ -1703,11 +1703,6 @@ cloudpickle 3.1.2 (BSD-3-Clause)
   Copyright (c) 2012, Regents of the University of California.
   Copyright (c) 2009 PiCloud, Inc. http://www.picloud.com.
 
-dnspython 2.8.0 (ISC)
-  Copyright (C) Dnspython Contributors
-  Copyright (C) 2001-2017 Nominum, Inc.
-  Copyright (C) Google Inc.
-
 feedparser 6.0.14 (BSD-2-Clause)
   Copyright (C) 2010-2025 Kurt McKee <contactme@kurtmckee.org>
   Copyright (C) 2002-2008 Mark Pilgrim

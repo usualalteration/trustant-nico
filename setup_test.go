@@ -39,8 +39,10 @@ func TestSetupInstallsCheckedOutOpenServerlessMCP(t *testing.T) {
 	if !strings.Contains(setup, `secret-unbind`) {
 		t.Fatal("setup.sh must verify a Trustant-only MCP registration")
 	}
-	if !strings.Contains(setup, `mongodb-mcp-server@1.9.0`) {
-		t.Fatal("setup.sh must install the MongoDB MCP version compatible with the pinned parser")
+	// Issue #230: Trustant never uses MongoDB; setup only uninstalls leftovers.
+	if strings.Contains(setup, `mongodb-mcp-server@`) ||
+		strings.Contains(setup, `"$OPENSERVERLESS_MCP_PACKAGE" mongodb-mcp-server`) {
+		t.Fatal("setup.sh must not install the MongoDB MCP server")
 	}
 	// WHY: the browser MCP and its Playwright/Chromium runtime were removed.
 	// The e2e harness keeps its own @playwright/test dependency, which lives in
