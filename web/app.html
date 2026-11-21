@@ -1609,6 +1609,7 @@
         let filesCurrentContent = '';
         let filesCollapsed = new Set();
         let filesEntries = [];
+        let filesCurrentPath = '';
 
         function showFilesModal() {
             document.getElementById('filesAppName').textContent = appName;
@@ -1629,6 +1630,7 @@
             document.getElementById('filesCurrentPath').textContent = 'Select a file';
             document.getElementById('filesCopyBtn').classList.add('hidden');
             filesCurrentContent = '';
+            filesCurrentPath = '';
         }
 
         async function loadFileTree() {
@@ -1637,13 +1639,27 @@
             document.getElementById('filesError').classList.add('hidden');
 
             try {
-                const resp = await fetch(`/api/files/${encodeURIComponent(appName)}`);
+                // no-store: the tree must match the disk now, like `ls` (issue #22).
+                const resp = await fetch(`/api/files/${encodeURIComponent(appName)}`, { cache: 'no-store' });
                 if (!resp.ok) throw new Error(await resp.text());
                 const data = await resp.json();
 
                 filesEntries = data.files || [];
                 document.getElementById('filesTruncated').classList.toggle('hidden', !data.truncated);
+
+                // Forget state about paths that no longer exist.
+                const present = new Set(filesEntries.map(e => e.path));
+                for (const p of [...filesCollapsed]) {
+                    if (!present.has(p)) filesCollapsed.delete(p);
+                }
                 renderFileTree();
+
+                // Re-sync the open file: reload it if it still exists, clear it if
+                // it was moved or deleted.
+                if (filesCurrentPath) {
+                    if (present.has(filesCurrentPath)) openFile(filesCurrentPath);
+                    else resetFileContentPane();
+                }
 
                 document.getElementById('filesLoading').classList.add('hidden');
                 document.getElementById('filesBody').classList.remove('hidden');
@@ -1695,6 +1711,7 @@
             const pathEl = document.getElementById('filesCurrentPath');
             const contentEl = document.getElementById('filesContent');
             pathEl.textContent = path;
+            filesCurrentPath = path;
             contentEl.textContent = 'Loading...';
             document.getElementById('filesCopyBtn').classList.add('hidden');
             filesCurrentContent = '';
@@ -1705,7 +1722,7 @@
             }
 
             try {
-                const resp = await fetch(`/api/files/${encodeURIComponent(appName)}?path=${encodeURIComponent(path)}`);
+                const resp = await fetch(`/api/files/${encodeURIComponent(appName)}?path=${encodeURIComponent(path)}`, { cache: 'no-store' });
                 if (!resp.ok) throw new Error(await resp.text());
                 const data = await resp.json();
 

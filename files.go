@@ -38,8 +38,9 @@ const maxViewableFileSize = 1 << 20 // 1 MB
 // deciding it is binary.
 const binarySniffLen = 8192
 
-// skippedDirs are never descended into: build output, dependencies, and the
-// git database itself would swamp the listing with irrelevant entries.
+// skippedDirs are listed but never descended into: build output, dependencies,
+// and the git database itself would swamp the listing with irrelevant entries.
+// Dot-prefixed ones (.git, .venv, .next) are hidden anyway by the dotfile rule.
 var skippedDirs = map[string]bool{
 	".git":         true,
 	"node_modules": true,
@@ -83,6 +84,10 @@ func handleFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The tree and contents change under the viewer (agent edits, git mv, rm);
+	// a cached response would show deleted or moved files (issue #22).
+	w.Header().Set("Cache-Control", "no-store")
+
 	name := strings.TrimPrefix(r.URL.Path, "/api/files/")
 	if name == "" || !namePattern.MatchString(name) {
 		http.Error(w, "Invalid name", http.StatusBadRequest)
@@ -123,9 +128,6 @@ func serveFileList(w http.ResponseWriter, workbenchPath string) {
 		}
 
 		base := d.Name()
-		if d.IsDir() && skippedDirs[base] {
-			return fs.SkipDir
-		}
 		if strings.HasPrefix(base, ".") && !allowedDotEntries[base] {
 			if d.IsDir() {
 				return fs.SkipDir
@@ -150,6 +152,10 @@ func serveFileList(w http.ResponseWriter, workbenchPath string) {
 			}
 		}
 		entries = append(entries, entry)
+		// Heavy directories are listed, as `ls` shows them, but never descended.
+		if d.IsDir() && skippedDirs[base] {
+			return fs.SkipDir
+		}
 		return nil
 	})
 	if err != nil {
