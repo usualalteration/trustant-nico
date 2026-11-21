@@ -32,9 +32,16 @@ Returns the file tree of `$WORKBENCH_DIR/<name>` as a flat list:
 `path` is always relative to the workbench root and slash-separated.
 Directories sort before files; within each group, paths sort lexicographically.
 
-These directories are never descended into, because they would swamp the
-listing: `.git`, `node_modules`, `dist`, `build`, `.venv`, `__pycache__`,
-`.next`.
+The listing mirrors what `ls` shows in the workbench terminal: it is a live
+walk of the disk on every call, so moved and deleted files disappear at once.
+Every response (tree and file content) carries `Cache-Control: no-store`, and
+the frontend fetches with `cache: 'no-store'`, so neither the browser nor a
+proxy can serve a previous tree or a previous file version.
+
+These directories are listed as entries but never descended into, because their
+contents would swamp the listing: `node_modules`, `dist`, `build`,
+`__pycache__`. `.git`, `.venv` and `.next` are in the same set but are hidden
+anyway by the dotfile rule below.
 
 Dot-prefixed entries are hidden except `.env`, `.env.production`, `.agents`,
 and `.claude` — the last two so assistant-installed skills under
@@ -104,7 +111,9 @@ Binary and oversize files show a plain message in place of content.
 
 The tree is fetched when the modal opens; there is no polling. A **Refresh**
 control re-fetches it for when the assistant has written new files while the
-modal is open.
+modal is open. Refresh also re-syncs the content pane: if the open file still
+exists it is re-fetched, so edits show up; if it was moved or deleted the pane
+is cleared. Collapsed-state for directories that no longer exist is dropped.
 
 The modal closes via the X button, the Close button, Escape, or a backdrop
 click.

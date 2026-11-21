@@ -97,7 +97,13 @@ func TestFilesListSkipsNoiseAndSortsDirsFirst(t *testing.T) {
 			t.Errorf("listing missing %q; got %v", want, got)
 		}
 	}
-	for _, unwanted := range []string{".git", ".git/config", "node_modules", "node_modules/left-pad/index.js", "dist", "dist/bundle.js", ".DS_Store"} {
+	// Heavy directories are listed like `ls` shows them, but not descended.
+	for _, dir := range []string{"node_modules", "dist"} {
+		if entry, ok := got[dir]; !ok || !entry.Dir {
+			t.Errorf("listing should contain directory %q; got %+v", dir, entry)
+		}
+	}
+	for _, unwanted := range []string{".git", ".git/config", "node_modules/left-pad", "node_modules/left-pad/index.js", "dist/bundle.js", ".DS_Store"} {
 		if _, ok := got[unwanted]; ok {
 			t.Errorf("listing should not contain %q", unwanted)
 		}
@@ -124,6 +130,67 @@ func TestFilesListSkipsNoiseAndSortsDirsFirst(t *testing.T) {
 
 	if resp.Truncated {
 		t.Errorf("truncated = true, want false for a small tree")
+	}
+}
+
+func listPaths(t *testing.T, name string) map[string]bool {
+	t.Helper()
+	rec := getFiles(t, "/api/files/"+name)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %q)", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Files []FileEntry `json:"files"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %s", err)
+	}
+	paths := map[string]bool{}
+	for _, f := range resp.Files {
+		paths[f.Path] = true
+	}
+	return paths
+}
+
+// Issue #22: the listing must follow the disk, like `ls`, after moves/deletes.
+func TestFilesListReflectsMovesAndDeletes(t *testing.T) {
+	name, workbench := newFilesWorkbench(t)
+	writeFile(t, filepath.Join(workbench, "src", "old.ts"), "a\n")
+	writeFile(t, filepath.Join(workbench, "gone.txt"), "b\n")
+
+	if p := listPaths(t, name); !p["src/old.ts"] || !p["gone.txt"] {
+		t.Fatalf("initial listing missing files: %v", p)
+	}
+
+	if err := os.MkdirAll(filepath.Join(workbench, "lib"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(workbench, "src", "old.ts"), filepath.Join(workbench, "lib", "new.ts")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(workbench, "gone.txt")); err != nil {
+		t.Fatal(err)
+	}
+
+	p := listPaths(t, name)
+	for _, stale := range []string{"src/old.ts", "gone.txt"} {
+		if p[stale] {
+			t.Errorf("listing still shows %q after it was moved/deleted", stale)
+		}
+	}
+	if !p["lib"] || !p["lib/new.ts"] {
+		t.Errorf("listing missing moved file: %v", p)
+	}
+}
+
+func TestFilesResponsesAreNotCached(t *testing.T) {
+	name, workbench := newFilesWorkbench(t)
+	writeFile(t, filepath.Join(workbench, "a.txt"), "a\n")
+
+	for _, target := range []string{"/api/files/" + name, "/api/files/" + name + "?path=a.txt"} {
+		if got := getFiles(t, target).Header().Get("Cache-Control"); got != "no-store" {
+			t.Errorf("%s Cache-Control = %q, want no-store", target, got)
+		}
 	}
 }
 
